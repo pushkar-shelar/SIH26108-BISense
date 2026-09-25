@@ -1,48 +1,83 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import PageContainer from '../../components/layout/PageContainer';
-import { PageHeader } from '../../components/layout/PageHeader';
-import { SectionHeader } from '../../components/layout/SectionHeader';
-import { Metric } from '../../components/ui/Metric';
-import { Button } from '../../components/ui/Button';
-import { Badge } from '../../components/ui/Badge';
-import { Dialog } from '../../components/ui/Dialog';
-import { Textarea } from '../../components/ui/Textarea';
-import { Mono, Body, Meta } from '../../components/ui/Typography';
-import { StandardCard } from '../../components/product/Standards';
-import { ConfidenceIndicator, EvidenceBlock, VerificationStatus as EvidenceVerificationStatus } from '../../components/product/Evidence';
-import { mockReviewQueue, mockChecklist } from './review.data';
-import type { ReviewItem, VerificationState } from './review.types';
-import { useVerifyClause } from '../../hooks/useVerification';
-import { ErrorState } from '../../components/ui/ErrorState';
+﻿import { useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import PageContainer from "../../components/layout/PageContainer";
+import { PageHeader } from "../../components/layout/PageHeader";
+import { SectionHeader } from "../../components/layout/SectionHeader";
+import { Metric } from "../../components/ui/Metric";
+import { Button } from "../../components/ui/Button";
+import { Badge } from "../../components/ui/Badge";
+import { Dialog } from "../../components/ui/Dialog";
+import { Textarea } from "../../components/ui/Textarea";
+import { Mono, Body, Meta } from "../../components/ui/Typography";
+import { VerificationStatus as EvidenceVerificationStatus } from "../../components/product/Evidence";
+import { mockChecklist } from "./review.data";
+import { useVerifyClause } from "../../hooks/useVerification";
+import { ErrorState } from "../../components/ui/ErrorState";
+import { LoadingState } from "../../components/ui/Loading";
+import { EmptyState } from "../../components/ui/EmptyState";
+import { useGetSession } from "../../hooks/useProcurement";
+import { useI18n } from "../../i18n/index";
+import type { TenderHealthFinding } from "../../types/api";
+
+type VerificationState = "VERIFIED" | "REJECTED" | "NEEDS REVIEW" | "UNVERIFIED";
+
+interface ReviewItemLocal {
+  id: string;
+  clause: string;
+  message: string;
+  severity: string;
+  category: string;
+  suggested_action: string;
+  status: VerificationState;
+}
 
 export default function ReviewVerifyPage() {
   const navigate = useNavigate();
-  const [queue, setQueue] = useState(mockReviewQueue);
-  const [selectedItem, setSelectedItem] = useState<ReviewItem | null>(null);
+  const { t } = useI18n();
+  const [searchParams] = useSearchParams();
+  const sessionId = searchParams.get("session_id") || "";
+
+  const { data: sessionData, isLoading, error } = useGetSession(sessionId || null);
+
+  const rawFindings: TenderHealthFinding[] = sessionData?.tender_findings || [];
+
+  const [queue, setQueue] = useState<ReviewItemLocal[]>([]);
+  const [initialized, setInitialized] = useState(false);
+  const [selectedItem, setSelectedItem] = useState<ReviewItemLocal | null>(null);
   const [notes, setNotes] = useState<Record<string, string>>({});
-  const [checklist, setChecklist] = useState<Set<string>>(new Set(['c1', 'c2', 'c3']));
+  const [checklist, setChecklist] = useState<Set<string>>(new Set(["c1", "c2", "c3"]));
 
   const { mutate: verifyClause, isPending: isVerifying, data: verificationResult, error: verifyError } = useVerifyClause();
 
+  if (!initialized && rawFindings.length > 0) {
+    const items: ReviewItemLocal[] = rawFindings.map((f, idx) => ({
+      id: `finding-${idx}`,
+      clause: f.clause,
+      message: f.message,
+      severity: f.severity,
+      category: f.category,
+      suggested_action: f.suggested_action,
+      status: "UNVERIFIED" as VerificationState,
+    }));
+    setQueue(items);
+    setInitialized(true);
+  }
+
   const handleStatusChange = (id: string, newStatus: VerificationState) => {
-    setQueue(queue.map(q => q.id === id ? { ...q, status: newStatus } : q));
+    setQueue(q => q.map(item => item.id === id ? { ...item, status: newStatus } : item));
     if (selectedItem?.id === id) {
-      setSelectedItem({ ...selectedItem, status: newStatus });
+      setSelectedItem(prev => prev ? { ...prev, status: newStatus } : null);
     }
   };
 
   const handleVerifyBackend = () => {
     if (!selectedItem) return;
-    const clause = notes[selectedItem.id] || "No custom clause provided.";
+    const clause = notes[selectedItem.id] || selectedItem.clause || "No clause provided.";
     verifyClause(
-      {
-        tender_clause: clause,
-        evidence_pack: { evidence: selectedItem.evidence } // Pass evidence
-      },
+      { tender_clause: clause, evidence_pack: { evidence: [] } },
       {
         onSuccess: (data) => {
-          handleStatusChange(selectedItem.id, data.verification_status === 'VERIFIED' ? 'VERIFIED' : 'REJECTED');
+          handleStatusChange(selectedItem.id, data.verification_status === "VERIFIED" ? "VERIFIED" : "REJECTED");
         }
       }
     );
@@ -64,6 +99,9 @@ export default function ReviewVerifyPage() {
     return acc;
   }, {} as Record<string, number>);
 
+  if (isLoading && sessionId) return <LoadingState message={t("state.loading")} />;
+  if (error && sessionId) return <PageContainer><ErrorState title={t("state.error")} description="Could not load the procurement session." /></PageContainer>;
+
   return (
     <PageContainer>
       <PageHeader
@@ -72,194 +110,108 @@ export default function ReviewVerifyPage() {
         description="Verify recommended standards, supporting evidence, versions, applicability and certification requirements."
       />
       <div className="flex gap-4 items-center mb-12 flex-wrap">
-        <Meta>PROCUREMENT</Meta>
-        <Body className="text-sm font-medium">Electrical Distribution Panel</Body>
-        <span className="text-border">|</span>
-        <Meta>STANDARDS</Meta>
-        <Mono className="text-sm">07 CANDIDATES</Mono>
+        <Meta>SESSION</Meta>
+        <Body className="text-sm font-medium">{sessionData?.title || (sessionId ? sessionId : "No session selected")}</Body>
         <span className="text-border">|</span>
         <Meta>FINDINGS</Meta>
-        <Mono className="text-sm">07</Mono>
+        <Mono className="text-sm">{queue.length.toString().padStart(2, "0")}</Mono>
       </div>
 
       <div className="flex flex-col gap-12 pb-24">
-        
-        {/* SUMMARY */}
         <section className="grid grid-cols-2 md:grid-cols-4 gap-4 border border-border p-6 bg-surface rounded-sm">
-          <Metric value={queue.length.toString().padStart(2, '0')} label="RECOMMENDED" />
-          <Metric value={(statusCounts['VERIFIED'] || 0).toString().padStart(2, '0')} label="VERIFIED" />
-          <Metric value={(statusCounts['NEEDS REVIEW'] || 0).toString().padStart(2, '0')} label="NEEDS REVIEW" />
-          <Metric value={(statusCounts['REJECTED'] || 0).toString().padStart(2, '0')} label="REJECTED" />
+          <Metric value={queue.length.toString().padStart(2, "0")} label="TOTAL FINDINGS" />
+          <Metric value={(statusCounts["VERIFIED"] || 0).toString().padStart(2, "0")} label="VERIFIED" />
+          <Metric value={(statusCounts["NEEDS REVIEW"] || 0).toString().padStart(2, "0")} label="NEEDS REVIEW" />
+          <Metric value={(statusCounts["REJECTED"] || 0).toString().padStart(2, "0")} label="REJECTED" />
         </section>
 
-        {/* REVIEW QUEUE */}
         <section className="flex flex-col gap-6">
-          <SectionHeader number="01" title="REVIEW QUEUE" />
-          <div className="flex flex-col gap-6">
-            {queue.map(item => (
-              <div key={item.id} className="relative">
-                <StandardCard 
-                  id={item.id}
-                  year={item.year}
-                  status="CURRENT"
-                  title={item.title}
-                  type="RECOMMENDED"
-                  relevance={item.confidence}
-                  certification={item.certification}
-                />
-                <div className="absolute top-0 right-0 h-full flex flex-col md:flex-row items-end md:items-center justify-end p-4 gap-6 bg-surface md:bg-transparent pointer-events-none">
-                  <div className="flex flex-col gap-1 pointer-events-auto items-end md:items-start bg-surface p-2 rounded-sm border md:border-0 border-border">
-                    <Meta>VERIFICATION</Meta>
-                    <Badge variant={
-                      item.status === 'VERIFIED' ? 'success' : 
-                      item.status === 'REJECTED' ? 'danger' : 
-                      item.status === 'UNVERIFIED' ? 'neutral' : 'warning'
-                    }>{item.status}</Badge>
+          <SectionHeader number="01" title="TENDER FINDINGS" />
+          {queue.length === 0 ? (
+            <EmptyState
+              title={sessionId ? t("state.noFindings") : t("state.noSession")}
+              description={sessionId ? "No tender findings found in the active session." : "Provide a session_id parameter to load findings."}
+            />
+          ) : (
+            <div className="flex flex-col gap-4">
+              {queue.map(item => (
+                <div key={item.id} className="flex flex-col gap-3 p-6 border border-border bg-surface rounded-sm hover:border-text-muted transition-colors">
+                  <div className="flex items-start justify-between gap-4 flex-wrap">
+                    <div className="flex flex-col gap-1 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Badge variant={item.severity === "CRITICAL" ? "danger" : item.severity === "HIGH" ? "warning" : "neutral"}>{item.severity}</Badge>
+                        <Badge variant="neutral">{item.category}</Badge>
+                        <Mono className="text-xs text-text-muted">CLAUSE: {item.clause}</Mono>
+                      </div>
+                      <Body className="text-sm font-medium text-text-primary mt-1">{item.message}</Body>
+                      {item.suggested_action && <Body className="text-xs text-text-secondary">→ {item.suggested_action}</Body>}
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <Badge variant={item.status === "VERIFIED" ? "success" : item.status === "REJECTED" ? "danger" : item.status === "UNVERIFIED" ? "neutral" : "warning"}>{item.status}</Badge>
+                      <Button className="uppercase" size="sm" onClick={() => setSelectedItem(item)}>REVIEW</Button>
+                    </div>
                   </div>
-                  <div className="flex flex-col gap-1 pointer-events-auto items-end md:items-start bg-surface p-2 rounded-sm border md:border-0 border-border">
-                    <Meta>EVIDENCE</Meta>
-                    <Mono className="text-sm font-medium">{item.evidence.length} REFERENCES</Mono>
-                  </div>
-                  <Button className="pointer-events-auto uppercase" size="sm" onClick={() => setSelectedItem(item)}>
-                    REVIEW
-                  </Button>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </section>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-          {/* CHECKLIST */}
           <section className="flex flex-col gap-6">
             <SectionHeader number="02" title="VERIFICATION CHECKLIST" />
             <div className="flex flex-col border border-border bg-surface rounded-sm">
               {mockChecklist.map(check => (
                 <label key={check.id} className="flex items-center gap-4 p-4 border-b border-border last:border-0 cursor-pointer hover:bg-surface-elevated transition-colors">
-                  <input 
-                    type="checkbox" 
-                    checked={checklist.has(check.id)} 
-                    onChange={() => toggleChecklist(check.id)}
-                    className="w-4 h-4 rounded-sm border-border bg-background checked:bg-text-primary focus:ring-0 cursor-pointer"
-                  />
-                  <Mono className={`text-sm ${checklist.has(check.id) ? 'text-text-primary' : 'text-text-muted'}`}>
-                    [{checklist.has(check.id) ? '✓' : ' '}] {check.label}
+                  <input type="checkbox" checked={checklist.has(check.id)} onChange={() => toggleChecklist(check.id)} className="w-4 h-4 rounded-sm border-border bg-background checked:bg-text-primary focus:ring-0 cursor-pointer" />
+                  <Mono className={`text-sm ${checklist.has(check.id) ? "text-text-primary" : "text-text-muted"}`}>
+                    [{checklist.has(check.id) ? "✓" : " "}] {check.label}
                   </Mono>
                 </label>
               ))}
             </div>
           </section>
-
-          {/* WARNINGS */}
           <section className="flex flex-col gap-6">
             <div className="flex flex-col gap-4 p-6 border-l-2 border-warning bg-surface rounded-r-sm h-full justify-center">
               <Meta className="text-warning">REVIEW REQUIRED</Meta>
-              <Body className="text-sm">
-                Certification requirement has not yet been independently verified.
-              </Body>
+              <Body className="text-sm">{sessionId ? "Review each finding against the recommended corrections before proceeding." : "No session selected. Add ?session_id=... to the URL to load findings."}</Body>
             </div>
           </section>
         </div>
 
-        {/* SUMMARY ACTION */}
         <section className="flex flex-col gap-6 mt-8">
           <SectionHeader number="03" title="REVIEW SUMMARY" />
           <div className="p-6 border border-border bg-surface-elevated rounded-sm flex flex-col sm:flex-row justify-between items-center gap-6">
             <div className="flex gap-4 items-center flex-wrap">
-              <Mono className="text-sm"><span className="text-text-primary font-bold">{statusCounts['VERIFIED'] || 0}</span> VERIFIED</Mono>
-              <Mono className="text-sm"><span className="text-text-primary font-bold">{statusCounts['NEEDS REVIEW'] || 0}</span> NEEDS REVIEW</Mono>
-              <Mono className="text-sm"><span className="text-text-primary font-bold">{statusCounts['REJECTED'] || 0}</span> REJECTED</Mono>
-              <Mono className="text-sm"><span className="text-text-primary font-bold">{statusCounts['UNVERIFIED'] || 0}</span> NOT REVIEWED</Mono>
+              <Mono className="text-sm"><span className="text-text-primary font-bold">{statusCounts["VERIFIED"] || 0}</span> VERIFIED</Mono>
+              <Mono className="text-sm"><span className="text-text-primary font-bold">{statusCounts["NEEDS REVIEW"] || 0}</span> NEEDS REVIEW</Mono>
+              <Mono className="text-sm"><span className="text-text-primary font-bold">{statusCounts["REJECTED"] || 0}</span> REJECTED</Mono>
+              <Mono className="text-sm"><span className="text-text-primary font-bold">{statusCounts["UNVERIFIED"] || 0}</span> NOT REVIEWED</Mono>
             </div>
-            <Button onClick={() => navigate('/basket')} className="shrink-0 w-full sm:w-auto">
+            <Button onClick={() => navigate(sessionId ? `/basket?session_id=${sessionId}` : "/basket")} className="shrink-0 w-full sm:w-auto">
               CONTINUE TO STANDARDS BASKET →
             </Button>
           </div>
         </section>
-
       </div>
 
-      <Dialog
-        isOpen={!!selectedItem}
-        onClose={() => setSelectedItem(null)}
-        title="STANDARD REVIEW"
-        className="max-w-3xl"
-        footer={<Button onClick={() => setSelectedItem(null)}>CLOSE</Button>}
-      >
+      <Dialog isOpen={!!selectedItem} onClose={() => setSelectedItem(null)} title="FINDING REVIEW" className="max-w-3xl" footer={<Button onClick={() => setSelectedItem(null)}>{t("btn.close")}</Button>}>
         {selectedItem && (
           <div className="flex flex-col gap-8 py-2">
             <div className="flex flex-col gap-1">
-              <Mono className="text-lg font-bold text-text-primary">{selectedItem.id} : {selectedItem.year}</Mono>
-              <Body className="font-medium text-text-secondary">{selectedItem.title}</Body>
+              <div className="flex items-center gap-2 flex-wrap">
+                <Badge variant={selectedItem.severity === "CRITICAL" ? "danger" : selectedItem.severity === "HIGH" ? "warning" : "neutral"}>{selectedItem.severity}</Badge>
+                <Badge variant="neutral">{selectedItem.category}</Badge>
+              </div>
+              <Body className="font-medium text-text-secondary mt-2">{selectedItem.message}</Body>
             </div>
-
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 border-y border-border py-6">
-              <div className="flex flex-col gap-4">
-                <div className="flex flex-col gap-2">
-                  <Meta>RECOMMENDATION</Meta>
-                  <Badge variant="neutral" className="w-fit">{selectedItem.type}</Badge>
-                </div>
-                <div className="flex flex-col gap-2">
-                  <Meta>CONFIDENCE</Meta>
-                  <ConfidenceIndicator level={selectedItem.confidence.level} score={selectedItem.confidence.score} />
-                </div>
-              </div>
-              <div className="flex flex-col gap-2">
-                <Meta>APPLICABILITY</Meta>
-                <div className="flex flex-col gap-1">
-                  {selectedItem.applicability.map((app, i) => (
-                    <Body key={i} className="text-sm">{app}</Body>
-                  ))}
-                </div>
-              </div>
+              <div className="flex flex-col gap-2"><Meta>CLAUSE</Meta><Mono className="text-sm">{selectedItem.clause}</Mono></div>
+              <div className="flex flex-col gap-2"><Meta>SUGGESTED ACTION</Meta><Body className="text-sm text-text-secondary">{selectedItem.suggested_action}</Body></div>
             </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <div className="flex flex-col gap-2">
-                <Meta>VERSION</Meta>
-                <Mono className="text-sm">CURRENT<br/>{selectedItem.id} : {selectedItem.year}</Mono>
-              </div>
-              <div className="flex flex-col gap-2">
-                <Meta>CERTIFICATION</Meta>
-                <Mono className="text-sm text-text-primary">{selectedItem.certification}</Mono>
-              </div>
-            </div>
-
             <div className="flex flex-col gap-4 border-t border-border pt-6">
-              <Meta>EVIDENCE</Meta>
-              {selectedItem.evidence.map((ev, i) => (
-                <div key={ev.id} className="flex flex-col gap-2">
-                  <Mono className="text-xs text-text-muted">EVIDENCE {(i+1).toString().padStart(2, '0')}</Mono>
-                  <EvidenceBlock 
-                    id={ev.standardId}
-                    year={ev.year}
-                    clause={ev.clause}
-                    page={ev.page}
-                    text={ev.text}
-                    sourceLabel="DEMO SOURCE"
-                  />
-                  <div className="flex justify-between items-center mt-1 mb-4">
-                    <div className="flex items-center gap-2">
-                      <Meta>VERIFICATION:</Meta>
-                      <Badge variant={ev.verification === 'SUPPORTED' ? 'success' : 'neutral'}>{ev.verification}</Badge>
-                    </div>
-                    <Button variant="ghost" size="sm" onClick={() => navigate('/evidence')} className="text-accent uppercase text-xs">OPEN EVIDENCE →</Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="flex flex-col gap-4 border-t border-border pt-6">
-              <Textarea 
-                label="TENDER CLAUSE TO VERIFY" 
-                placeholder="Enter tender clause to verify against evidence..."
-                value={notes[selectedItem.id] || ''}
-                onChange={(e) => handleNoteChange(selectedItem.id, e.target.value)}
-                rows={3}
-              />
-              <Button variant="secondary" onClick={handleVerifyBackend} disabled={isVerifying}>
-                {isVerifying ? 'VERIFYING WITH ENGINE...' : 'RUN BACKEND VERIFICATION'}
-              </Button>
+              <Textarea label="TENDER CLAUSE TO VERIFY" placeholder="Enter tender clause to verify against evidence..." value={notes[selectedItem.id] || ""} onChange={(e) => handleNoteChange(selectedItem.id, e.target.value)} rows={3} />
+              <Button variant="secondary" onClick={handleVerifyBackend} disabled={isVerifying}>{isVerifying ? "VERIFYING WITH ENGINE..." : "RUN BACKEND VERIFICATION"}</Button>
               {verifyError && <ErrorState title="VERIFICATION ERROR" description="Failed to run backend verification." />}
               {verificationResult && (
                 <div className="p-4 border border-border bg-surface-elevated flex flex-col gap-2 mt-4">
@@ -267,19 +219,16 @@ export default function ReviewVerifyPage() {
                   <EvidenceVerificationStatus status={verificationResult.verification_status as any} />
                   <Body className="text-sm font-medium mt-2">REASON:</Body>
                   <Body className="text-sm text-text-secondary">{verificationResult.reason}</Body>
-                  <div className="flex gap-4 mt-2">
-                     <Meta>CONFIDENCE: {(verificationResult.confidence * 100).toFixed(0)}%</Meta>
-                  </div>
+                  <div className="flex gap-4 mt-2"><Meta>CONFIDENCE: {(verificationResult.confidence * 100).toFixed(0)}%</Meta></div>
                 </div>
               )}
             </div>
-
             <div className="flex flex-wrap gap-4 border-t border-border pt-6 bg-surface-elevated p-4 -mx-6 -mb-6 mt-4 rounded-b-sm items-center justify-between">
               <Meta>REVIEW DECISION</Meta>
               <div className="flex gap-2 flex-wrap">
-                <Button variant="secondary" onClick={() => handleStatusChange(selectedItem.id, 'VERIFIED')}>VERIFY STANDARD</Button>
-                <Button variant="destructive" onClick={() => handleStatusChange(selectedItem.id, 'REJECTED')}>REJECT STANDARD</Button>
-                <Button variant="ghost" onClick={() => handleStatusChange(selectedItem.id, 'NEEDS REVIEW')}>KEEP FOR FURTHER REVIEW</Button>
+                <Button variant="secondary" onClick={() => handleStatusChange(selectedItem.id, "VERIFIED")}>VERIFY FINDING</Button>
+                <Button variant="destructive" onClick={() => handleStatusChange(selectedItem.id, "REJECTED")}>REJECT FINDING</Button>
+                <Button variant="ghost" onClick={() => handleStatusChange(selectedItem.id, "NEEDS REVIEW")}>KEEP FOR FURTHER REVIEW</Button>
               </div>
             </div>
           </div>

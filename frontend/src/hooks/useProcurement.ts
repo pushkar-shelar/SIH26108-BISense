@@ -1,4 +1,4 @@
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { procurementApi } from '../services/procurementApi';
 import type { ProcurementSessionCreateRequest } from '../types/api';
 
@@ -22,3 +22,26 @@ export function useProcurements() {
     queryFn: () => procurementApi.listSessions(),
   });
 }
+
+export function useAddToBasket(sessionId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (standard: Record<string, any>) =>
+      procurementApi.addStandardToBasket(sessionId, standard),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['procurementSession', sessionId] });
+    },
+  });
+}
+
+export function useRemoveFromBasket(sessionId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (familyId: string) =>
+      procurementApi.removeStandardFromBasket(sessionId, familyId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['procurementSession', sessionId] });
+    },
+  });
+}
+

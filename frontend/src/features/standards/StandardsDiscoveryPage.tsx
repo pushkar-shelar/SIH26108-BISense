@@ -14,10 +14,12 @@ import { RecommendationReason, EvidenceBlock } from '../../components/product/Ev
 import { Mono, Body, Meta } from '../../components/ui/Typography';
 import { Select } from '../../components/ui/Select';
 import { useRecommendStandards } from '../../hooks/useStandards';
+import { useI18n } from '../../i18n/index';
 import type { StandardRecommendation } from '../../types/api';
 
 export default function StandardsDiscoveryPage() {
   const navigate = useNavigate();
+  const { t, language } = useI18n();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStandard, setSelectedStandard] = useState<StandardRecommendation | null>(null);
   const [dialogType, setDialogType] = useState<'why' | 'evidence' | 'versions' | null>(null);
@@ -75,7 +77,7 @@ export default function StandardsDiscoveryPage() {
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onClear={() => setSearchQuery('')}
               />
-              <Button onClick={handleSearch} disabled={isLoading}>{isLoading ? 'SEARCHING...' : 'SEARCH'}</Button>
+              <Button onClick={handleSearch} disabled={isLoading}>{isLoading ? t('btn.searching') : t('btn.search')}</Button>
             </div>
             
             {error && <div className="text-danger p-4 border border-danger rounded-sm">Failed to connect to backend engine. Is FastAPI running locally?</div>}
@@ -100,14 +102,19 @@ export default function StandardsDiscoveryPage() {
                 {!apiData?.recommended_standards?.length && !isLoading && (
                    <Body className="text-text-muted">No standards found. Please try a different query.</Body>
                 )}
-                {apiData?.recommended_standards?.map((std) => (
+                {apiData?.recommended_standards?.map((std) => {
+                  // Show title based on language preference
+                  const titleEn = std.title_en || std.title;
+                  const titleHi = (std as any).title_hi;
+                  const displayTitle = language === 'hi' && titleHi ? titleHi : language === 'mr' && titleHi ? titleHi : titleEn;
+                  return (
                   <div key={std.standard_id} className="relative">
                     <StandardCard 
                       id={std.standard_id}
                       year={""}
                       status={"CURRENT"}
-                      title={std.title}
-                      description={"Standard retrieved from MaanakAI Engine."}
+                      title={displayTitle}
+                      description={titleHi && language !== 'en' ? undefined : (titleHi ? `हिंदी: ${titleHi}` : undefined)}
                       type={"PRIMARY"}
                       relevance={std.confidence.confidence_level === 'HIGH' ? 'HIGH' : std.confidence.confidence_level === 'MEDIUM' ? 'MEDIUM' : 'LOW'}
                       certification={std.verification_status === 'VERIFIED' ? 'REQUIRED' : 'UNKNOWN'}
@@ -121,8 +128,8 @@ export default function StandardsDiscoveryPage() {
                         {basket.has(std.standard_id) ? '✓ SELECTED' : '+ ADD'}
                       </Button>
                     </div>
-                  </div>
-                ))}
+                  </div>);
+                })}
               </div>
             </section>
 

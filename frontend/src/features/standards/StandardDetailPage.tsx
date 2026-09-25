@@ -1,4 +1,5 @@
-import { useNavigate, useParams } from 'react-router-dom';
+import { useState } from 'react';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import PageContainer from '../../components/layout/PageContainer';
 import { PageHeader } from '../../components/layout/PageHeader';
 import { SectionHeader } from '../../components/layout/SectionHeader';
@@ -8,16 +9,23 @@ import { Mono, Body, Meta } from '../../components/ui/Typography';
 import { DataList } from '../../components/ui/DataList';
 import { VersionTimeline, RelationshipItem, CertificationIndicator } from '../../components/product/Standards';
 import { useStandard, useStandardVersions } from '../../hooks/useStandards';
+import { useAddToBasket } from '../../hooks/useProcurement';
 import { LoadingState } from '../../components/ui/Loading';
 import { ErrorState } from '../../components/ui/ErrorState';
 import { EmptyState } from '../../components/ui/EmptyState';
+import { useI18n } from '../../i18n/index';
 
 export default function StandardDetailPage() {
   const navigate = useNavigate();
+  const { t } = useI18n();
   const { standardId } = useParams();
+  const [searchParams] = useSearchParams();
+  const sessionId = searchParams.get('session_id') || '';
+  const [addedToBasket, setAddedToBasket] = useState(false);
 
   const { data: stdData, isLoading, error } = useStandard(standardId || '');
   const { data: versionsData } = useStandardVersions(standardId || '', { enabled: !!standardId });
+  const { mutate: addToBasket, isPending: isAddingToBasket, error: addError } = useAddToBasket(sessionId);
 
   if (isLoading) return <LoadingState message={`Loading standard ${standardId}...`} />;
   if (error || !stdData) return <PageContainer><ErrorState title="NOT FOUND" description="Standard could not be loaded." /></PageContainer>;
@@ -25,6 +33,21 @@ export default function StandardDetailPage() {
   const standard = stdData.standard;
   const alliedGraph = stdData.allied_graph || [];
   const certification = stdData.certification;
+
+  const handleAddToBasket = () => {
+    if (!sessionId) return;
+    const payload = {
+      standard_id: standard.family_id || standard.raw_id || standard.number,
+      family_id: standard.family_id,
+      raw_id: standard.raw_id,
+      title: standard.title_en || standard.title,
+      year: standard.year,
+      status: standard.status,
+    };
+    addToBasket(payload, {
+      onSuccess: () => setAddedToBasket(true),
+    });
+  };
 
   return (
     <PageContainer>
@@ -56,9 +79,25 @@ export default function StandardDetailPage() {
 
       <div className="flex flex-col gap-12 pb-24">
         
-        <div className="flex gap-4 border-b border-border pb-8">
-          <Button>ADD TO BASKET</Button>
-          <Button variant="secondary" onClick={() => navigate('/standards')}>OPEN IN DISCOVERY</Button>
+        <div className="flex flex-col gap-3 border-b border-border pb-8">
+          <div className="flex gap-4 flex-wrap">
+            {!sessionId ? (
+              <Button disabled title="No session active — open from a procurement session to add to basket">{t('btn.addToBasket')}</Button>
+            ) : addedToBasket ? (
+              <Button variant="secondary" disabled>✓ ADDED TO BASKET</Button>
+            ) : (
+              <Button onClick={handleAddToBasket} disabled={isAddingToBasket}>
+                {isAddingToBasket ? 'ADDING...' : t('btn.addToBasket')}
+              </Button>
+            )}
+            <Button variant="secondary" onClick={() => navigate('/standards')}>OPEN IN DISCOVERY</Button>
+          </div>
+          {!sessionId && (
+            <Meta className="text-text-muted text-xs">Open this standard from within a procurement session to add it to the basket.</Meta>
+          )}
+          {addError && (
+            <Meta className="text-error text-xs">Failed to add standard to basket. Please try again.</Meta>
+          )}
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">

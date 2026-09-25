@@ -13,4 +13,17 @@ export const procurementApi = {
 
   listSessions: () =>
     fetchApi<{ sessions: ProcurementSessionResponse[] }>('/api/v1/procurements'),
+
+  addStandardToBasket: (sessionId: string, standard: Record<string, any>) =>
+    fetchApi<ProcurementSessionResponse>(`/api/v1/procurements/session/${sessionId}/standards`, {
+      method: 'POST',
+      body: JSON.stringify(standard),
+    }),
+
+  removeStandardFromBasket: (sessionId: string, familyId: string) =>
+    fetchApi<ProcurementSessionResponse>(
+      `/api/v1/procurements/session/${sessionId}/standards/${encodeURIComponent(familyId)}`,
+      { method: 'DELETE' }
+    ),
 };
+

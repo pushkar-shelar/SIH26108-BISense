@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import PageContainer from '../../components/layout/PageContainer';
 import { PageHeader } from '../../components/layout/PageHeader';
@@ -8,26 +9,33 @@ import { Mono, Meta } from '../../components/ui/Typography';
 import { Button } from '../../components/ui/Button';
 import { DataList } from '../../components/ui/DataList';
 import { useSearchParams } from 'react-router-dom';
-import { useGetSession } from '../../hooks/useProcurement';
+import { useGetSession, useRemoveFromBasket } from '../../hooks/useProcurement';
 import { LoadingState } from '../../components/ui/Loading';
 import { ErrorState } from '../../components/ui/ErrorState';
 import { EmptyState } from '../../components/ui/EmptyState';
+import { useI18n } from '../../i18n/index';
 
 export default function StandardsBasketPage() {
   const navigate = useNavigate();
+  const { t } = useI18n();
   const [searchParams] = useSearchParams();
   const sessionId = searchParams.get('session_id') || '';
 
   const { data: sessionData, isLoading, error } = useGetSession(sessionId);
+  const { mutate: removeStandard, isPending: isRemoving, error: removeError } = useRemoveFromBasket(sessionId);
+  const [removingId, setRemovingId] = useState<string | null>(null);
 
   // We rely on session.selected_standards for the basket.
   const standards = sessionData?.selected_standards || [];
   
-  if (isLoading) return <LoadingState message="Loading standards basket..." />;
+  if (isLoading) return <LoadingState message={t('state.loading')} />;
   if (error || !sessionId) return <PageContainer><ErrorState title="SESSION ERROR" description="Could not load the procurement session." /></PageContainer>;
 
-  const handleRemoveStandard = (id: string) => {
-    alert(`Removing standard ${id} from backend session is not implemented in the API yet.`);
+  const handleRemoveStandard = (familyId: string) => {
+    setRemovingId(familyId);
+    removeStandard(familyId, {
+      onSettled: () => setRemovingId(null),
+    });
   };
 
   return (
@@ -41,12 +49,18 @@ export default function StandardsBasketPage() {
         <Meta>DISCOVERED</Meta>
         <Mono className="text-sm">--</Mono>
         <span className="text-border">|</span>
-        <Meta>SELECTED</Meta>
+        <Meta>{t('basket.selected')}</Meta>
         <Mono className="text-sm">{standards.length}</Mono>
         <span className="text-border">|</span>
-        <Meta>VERIFIED</Meta>
+        <Meta>{t('basket.verified')}</Meta>
         <Mono className="text-sm">{sessionData?.verification_state}</Mono>
       </div>
+
+      {removeError && (
+        <div className="mb-6 p-3 border border-error/40 bg-error/5 rounded-sm">
+          <Mono className="text-sm text-error">{t('basket.removeFailed')}</Mono>
+        </div>
+      )}
 
       <div className="flex flex-col gap-12 pb-24">
         
@@ -54,32 +68,42 @@ export default function StandardsBasketPage() {
         <section className="flex flex-col gap-6">
           <SectionHeader number="01" title="SELECTED STANDARDS" />
           <div className="flex flex-col gap-6">
-            {standards.length === 0 && <EmptyState title="EMPTY BASKET" description="No standards have been added to this procurement session." />}
-            {standards.map(std => (
-              <div key={std.standard_id || std.id} className="relative">
-                <StandardCard 
-                  id={std.standard_id || std.id}
-                  year={std.year || 2024}
-                  status={std.status || 'ACTIVE'}
-                  title={std.title || 'Unknown Title'}
-                  type={std.type || 'PRODUCT_STANDARD'}
-                  relevance={{ level: 'HIGH', score: 1.0 }} 
-                />
-                <div className="absolute top-0 right-0 h-full flex flex-col md:flex-row items-end md:items-center justify-end p-4 gap-6 bg-surface md:bg-transparent pointer-events-none">
-                  <div className="flex flex-col gap-1 pointer-events-auto items-end md:items-start bg-surface p-2 rounded-sm border md:border-0 border-border">
-                    <Meta>VERIFICATION</Meta>
-                    <VerificationStatus status={std.verificationStatus || 'UNVERIFIED'} />
+            {standards.length === 0 && <EmptyState title={t('state.emptyBasket')} description="No standards have been added to this procurement session." />}
+            {standards.map(std => {
+              const id = std.standard_id || std.family_id || std.id || std.raw_id;
+              const isBeingRemoved = removingId === id || isRemoving && removingId === id;
+              return (
+                <div key={id} className={`relative transition-opacity ${isBeingRemoved ? 'opacity-50 pointer-events-none' : ''}`}>
+                  <StandardCard 
+                    id={id}
+                    year={std.year || 2024}
+                    status={std.status || 'ACTIVE'}
+                    title={std.title_en || std.title || 'Unknown Title'}
+                    type={std.type || 'PRODUCT_STANDARD'}
+                    relevance={{ level: 'HIGH', score: 1.0 }} 
+                  />
+                  <div className="absolute top-0 right-0 h-full flex flex-col md:flex-row items-end md:items-center justify-end p-4 gap-6 bg-surface md:bg-transparent pointer-events-none">
+                    <div className="flex flex-col gap-1 pointer-events-auto items-end md:items-start bg-surface p-2 rounded-sm border md:border-0 border-border">
+                      <Meta>VERIFICATION</Meta>
+                      <VerificationStatus status={std.verificationStatus || 'UNVERIFIED'} />
+                    </div>
+                    <div className="flex flex-col gap-1 pointer-events-auto items-end md:items-start bg-surface p-2 rounded-sm border md:border-0 border-border">
+                      <Meta>EVIDENCE</Meta>
+                      <Mono className="text-sm font-medium">{std.evidenceCount || 0} REFERENCES</Mono>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="pointer-events-auto text-error hover:text-error hover:bg-error/10 uppercase"
+                      onClick={() => handleRemoveStandard(id)}
+                      disabled={isBeingRemoved}
+                    >
+                      {isBeingRemoved ? '...' : t('btn.remove')}
+                    </Button>
                   </div>
-                  <div className="flex flex-col gap-1 pointer-events-auto items-end md:items-start bg-surface p-2 rounded-sm border md:border-0 border-border">
-                    <Meta>EVIDENCE</Meta>
-                    <Mono className="text-sm font-medium">{std.evidenceCount || 0} REFERENCES</Mono>
-                  </div>
-                  <Button variant="ghost" size="sm" className="pointer-events-auto text-error hover:text-error hover:bg-error/10 uppercase" onClick={() => handleRemoveStandard(std.standard_id || std.id)}>
-                    REMOVE
-                  </Button>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </section>
 
@@ -104,7 +128,7 @@ export default function StandardsBasketPage() {
                 ]}
               />
               <div className="mt-6 pt-6 border-t border-border flex justify-between items-center">
-                <Meta>TOTAL REFERENCES</Meta>
+                <Meta>{t('basket.total')}</Meta>
                 <Mono className="text-lg font-bold">{standards.length}</Mono>
               </div>
             </div>
@@ -126,3 +150,4 @@ export default function StandardsBasketPage() {
     </PageContainer>
   );
 }
+

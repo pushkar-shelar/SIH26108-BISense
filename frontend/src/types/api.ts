@@ -112,12 +112,28 @@ export interface TenderDiffRequest {
   version_b_text: string;
 }
 
+export interface TenderDiffChange {
+  clause?: string;
+  change_type?: string;
+  severity?: string;
+  description?: string;
+  message?: string;
+  recommended_action?: string;
+  original_text?: string;
+  recommended_text?: string;
+}
+
 export interface TenderDiffResponse {
   added_clauses: string[];
   removed_clauses: string[];
   modified_clauses: Record<string, string>[];
   changed_technical_values: Record<string, any>[];
   changed_standards: Record<string, string>[];
+  // Extended fields for 1-click auto-fix
+  changes?: TenderDiffChange[];
+  corrected_version_b?: string;
+  compliance_score?: number;
+  status?: string;
 }
 
 export interface CompletenessResponse {
