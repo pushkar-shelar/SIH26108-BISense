@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Response, Request
 from typing import Dict, Any
 
-from schemas.auth import UserCreate, UserResponse
+from schemas.auth import UserCreate, UserLogin, UserResponse
 from services.auth_service import AuthService, AuthException
 from dependencies.auth import get_auth_service, get_current_user
 from config import settings
@@ -42,7 +42,7 @@ def register(user_in: UserCreate, auth_service: AuthService = Depends(get_auth_s
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=e.message)
 
 @router.post("/login")
-def login(user_in: UserCreate, response: Response, auth_service: AuthService = Depends(get_auth_service)):
+def login(user_in: UserLogin, response: Response, auth_service: AuthService = Depends(get_auth_service)):
     # Note: user_in for login usually just needs email and password. Reusing UserCreate works since it has both.
     # In a real app we might use OAuth2PasswordRequestForm, but we match the requested JSON spec here.
     try:
