@@ -49,7 +49,7 @@ export function Sidebar() {
     <aside className="w-full md:w-64 border-r border-slate-200/90 bg-white flex flex-col h-full overflow-y-auto select-none">
       {/* Brand Header - exact height to match top header */}
       <div className="h-16 px-4 border-b border-slate-100 flex items-center justify-between shrink-0">
-        <NavLink to="/landing" className="flex items-center gap-2.5 group" title="Return to Landing Page">
+        <NavLink to="/dashboard" className="flex items-center gap-2.5 group" title="Return to Dashboard">
           <div className="w-8 h-8 flex items-center justify-center shrink-0">
             <img src="/logo.png" alt="BISense Logo" className="w-7 h-7 object-contain transition-transform group-hover:scale-105" />
           </div>

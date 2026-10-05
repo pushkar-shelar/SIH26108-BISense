@@ -1,7 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowRight, Play, Factory, Building2, Box, ShieldCheck } from 'lucide-react';
-import HeroMockupPreview from './HeroMockupPreview';
 
 interface HeroSectionProps {
   onSeeHowItWorksClick: () => void;

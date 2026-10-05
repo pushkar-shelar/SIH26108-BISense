@@ -3,18 +3,29 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowRight, Menu, X, ChevronDown } from 'lucide-react';
 import BISenseLogo from './BISenseLogo';
 
+import { useAuth } from '../../../stores/auth.store';
+
 interface LandingNavbarProps {
   onBookDemoClick: () => void;
 }
 
 export const LandingNavbar: React.FC<LandingNavbarProps> = ({ onBookDemoClick }) => {
   const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [resourcesOpen, setResourcesOpen] = useState(false);
 
   const handleLoginClick = () => {
     // As per user specification: Login part redirects directly to dashboard
     navigate('/dashboard');
+  };
+
+  const handleLogoClick = () => {
+    if (isAuthenticated) {
+      navigate('/dashboard');
+    } else {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
   };
 
   const scrollToSection = (sectionId: string) => {
@@ -31,7 +42,7 @@ export const LandingNavbar: React.FC<LandingNavbarProps> = ({ onBookDemoClick })
         <div className="flex items-center justify-between h-20">
           {/* Brand Logo */}
           <div 
-            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+            onClick={handleLogoClick}
             className="flex items-center cursor-pointer group"
           >
             <BISenseLogo size="md" />

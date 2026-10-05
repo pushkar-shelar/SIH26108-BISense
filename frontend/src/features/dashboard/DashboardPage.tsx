@@ -158,7 +158,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Right Floating Quote Card */}
-        <div className="relative z-10 mr-4 md:mr-8 p-3.5 bg-white/95 backdrop-blur-md rounded-2xl border border-slate-100 shadow-sm max-w-[270px] self-start mt-4 hidden sm:block">
+        <div className="relative z-0 mr-4 md:mr-8 p-3.5 bg-white/95 backdrop-blur-md rounded-2xl border border-slate-100 shadow-sm max-w-[270px] self-start mt-4 hidden sm:block">
           <div className="flex items-start gap-2">
             <span className="text-orange-500 font-serif font-black text-2xl leading-none select-none">
               “
