@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Mail, Lock, User, Eye, EyeOff, ArrowRight, ShieldCheck, Building2 } from 'lucide-react';
+import { Mail, Lock, User, Eye, EyeOff, ArrowRight, Building2 } from 'lucide-react';
 import { useAuth } from '../../stores/auth.store';
 
 export default function RegisterPage() {
@@ -11,7 +11,7 @@ export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { register } = useAuth();
+  const { register, isAuthenticated } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -42,7 +42,7 @@ export default function RegisterPage() {
         <div className="max-w-md w-full mx-auto">
           {/* Brand Header */}
           <div className="flex items-center justify-between mb-8">
-            <Link to="/" className="flex items-center gap-3 group">
+            <Link to={isAuthenticated ? "/dashboard" : "/"} className="flex items-center gap-3 group">
               <div className="w-10 h-10 rounded-xl bg-orange-500/10 border border-orange-500/20 flex items-center justify-center p-1.5 shadow-2xs group-hover:scale-105 transition-transform">
                 <img src="/logo.png" alt="BISense" className="w-full h-full object-contain" />
               </div>

@@ -1,10 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { 
-  BookOpen, 
-  Search, 
-  ShieldCheck, 
-  BarChart3, 
   Mail, 
   Lock, 
   Eye, 
@@ -22,8 +18,9 @@ export default function LoginPage() {
   const [authMethod, setAuthMethod] = useState<'email' | 'sso'>('email');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [ssoLoading, setSsoLoading] = useState(false);
   const [autofilledNotice, setAutofilledNotice] = useState(false);
-  const { login } = useAuth();
+  const { login, isAuthenticated } = useAuth();
   const navigate = useNavigate();
 
   // Official demo credentials for SIH evaluation
@@ -41,6 +38,7 @@ export default function LoginPage() {
 
   const handleQuickDemoLogin = async (e?: React.MouseEvent) => {
     if (e) e.preventDefault();
+    if (loading || ssoLoading) return;
     setError('');
     setEmail(DEMO_EMAIL);
     setPassword(DEMO_PASSWORD);
@@ -50,14 +48,36 @@ export default function LoginPage() {
       await login({ email: DEMO_EMAIL, password: DEMO_PASSWORD });
       navigate('/dashboard');
     } catch (err: any) {
-      setError(err.message || 'Demo login failed. Please try again.');
+      if (err.status === 401 || err.code === 'UNAUTHORIZED' || err.message?.toLowerCase().includes('invalid')) {
+        setError('Invalid email or password.');
+      } else {
+        setError('Unable to connect to BISense. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
   };
 
+  const handleSsoClick = async () => {
+    if (ssoLoading || loading) return;
+    setError('');
+    setAuthMethod('sso');
+    setSsoLoading(true);
+
+    try {
+      // Check Govt SSO provider status (as verified, Govt SSO is not configured on backend)
+      await new Promise(resolve => setTimeout(resolve, 400));
+      setError('Government SSO is currently unavailable. Please try again or sign in using email.');
+    } catch {
+      setError('Government SSO is currently unavailable. Please try again or sign in using email.');
+    } finally {
+      setSsoLoading(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading || ssoLoading) return;
     setError('');
     setLoading(true);
 
@@ -65,7 +85,13 @@ export default function LoginPage() {
       await login({ email, password });
       navigate('/dashboard');
     } catch (err: any) {
-      setError(err.message || 'Invalid credentials. Click Auto-fill to test.');
+      if (err.status === 401 || err.code === 'UNAUTHORIZED' || err.message?.toLowerCase().includes('invalid')) {
+        setError('Invalid email or password.');
+      } else if (err.code === 'NETWORK_ERROR' || !err.status || err.status >= 500) {
+        setError('Unable to connect to BISense. Please try again.');
+      } else {
+        setError(err.message || 'Unable to connect to BISense. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -98,19 +124,14 @@ export default function LoginPage() {
 
             {/* Content Area */}
             <div className="relative z-10">
-              {/* Brand Logo */}
-              <Link to="/" className="inline-flex items-center gap-3 group mb-8">
-                <div className="w-10 h-10 rounded-xl bg-orange-500/10 border border-orange-500/20 flex items-center justify-center p-1.5 shadow-2xs group-hover:scale-105 transition-transform">
-                  <img src="/logo.png" alt="BISense" className="w-full h-full object-contain" />
-                </div>
-                <div>
-                  <span className="font-extrabold text-2xl text-slate-900 tracking-tight leading-none">
-                    BISense
-                  </span>
-                  <p className="text-[10px] font-bold tracking-widest text-slate-400 uppercase mt-0.5">
-                    STANDARDS INTELLIGENCE
-                  </p>
-                </div>
+              {/* Brand Title - Text only without logo image and background */}
+              <Link to={isAuthenticated ? "/dashboard" : "/"} className="inline-block group mb-8">
+                <span className="font-extrabold text-2xl text-slate-900 tracking-tight leading-none block">
+                  BISense
+                </span>
+                <p className="text-[10px] font-bold tracking-widest text-slate-400 uppercase mt-1">
+                  STANDARDS INTELLIGENCE
+                </p>
               </Link>
 
               {/* Headline using exact requested typography */}
@@ -126,50 +147,46 @@ export default function LoginPage() {
                 Search, analyze and ensure compliance with Bureau of Indian Standards (BIS) specifications.
               </p>
 
-              {/* 4 Feature Value Props */}
-              <div className="space-y-3.5 max-w-xs sm:max-w-sm">
+              {/* 4 Feature Value Props - Clean text only without icons */}
+              <div className="space-y-4 max-w-sm">
                 {/* 1. Explore Standards */}
-                <div className="flex items-center gap-3.5 p-1 rounded-2xl bg-white/80 backdrop-blur-xs border border-white/60 shadow-2xs">
-                  <div className="w-11 h-11 rounded-2xl bg-orange-50 border border-orange-100 flex items-center justify-center shrink-0 shadow-2xs">
-                    <BookOpen className="w-5 h-5 text-orange-500" />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-slate-900 text-sm">Explore Standards</h3>
-                    <p className="text-xs text-slate-500 mt-0.5">Search across thousands of BIS standards</p>
-                  </div>
+                <div className="py-0.5">
+                  <h3 className="font-bold text-slate-900 text-sm tracking-tight drop-shadow-[0_1px_1px_rgba(255,255,255,0.95)]">
+                    Explore Standards
+                  </h3>
+                  <p className="text-xs text-slate-600 font-medium mt-0.5 drop-shadow-[0_1px_1px_rgba(255,255,255,0.9)]">
+                    Search across thousands of BIS standards
+                  </p>
                 </div>
 
                 {/* 2. Smarter Compliance */}
-                <div className="flex items-center gap-3.5 p-1 rounded-2xl bg-white/80 backdrop-blur-xs border border-white/60 shadow-2xs">
-                  <div className="w-11 h-11 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-center shrink-0 shadow-2xs">
-                    <Search className="w-5 h-5 text-blue-500" />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-slate-900 text-sm">Smarter Compliance</h3>
-                    <p className="text-xs text-slate-500 mt-0.5">AI-powered insights and clause analysis</p>
-                  </div>
+                <div className="py-0.5">
+                  <h3 className="font-bold text-slate-900 text-sm tracking-tight drop-shadow-[0_1px_1px_rgba(255,255,255,0.95)]">
+                    Smarter Compliance
+                  </h3>
+                  <p className="text-xs text-slate-600 font-medium mt-0.5 drop-shadow-[0_1px_1px_rgba(255,255,255,0.9)]">
+                    AI-powered insights and clause analysis
+                  </p>
                 </div>
 
                 {/* 3. Stay Updated */}
-                <div className="flex items-center gap-3.5 p-1 rounded-2xl bg-white/80 backdrop-blur-xs border border-white/60 shadow-2xs">
-                  <div className="w-11 h-11 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center shrink-0 shadow-2xs">
-                    <ShieldCheck className="w-5 h-5 text-emerald-500" />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-slate-900 text-sm">Stay Updated</h3>
-                    <p className="text-xs text-slate-500 mt-0.5">Real-time alerts and amendments</p>
-                  </div>
+                <div className="py-0.5">
+                  <h3 className="font-bold text-slate-900 text-sm tracking-tight drop-shadow-[0_1px_1px_rgba(255,255,255,0.95)]">
+                    Stay Updated
+                  </h3>
+                  <p className="text-xs text-slate-600 font-medium mt-0.5 drop-shadow-[0_1px_1px_rgba(255,255,255,0.9)]">
+                    Real-time alerts and amendments
+                  </p>
                 </div>
 
                 {/* 4. Better Decisions */}
-                <div className="flex items-center gap-3.5 p-1 rounded-2xl bg-white/80 backdrop-blur-xs border border-white/60 shadow-2xs">
-                  <div className="w-11 h-11 rounded-2xl bg-purple-50 border border-purple-100 flex items-center justify-center shrink-0 shadow-2xs">
-                    <BarChart3 className="w-5 h-5 text-purple-500" />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-slate-900 text-sm">Better Decisions</h3>
-                    <p className="text-xs text-slate-500 mt-0.5">Turn standards into actionable intelligence</p>
-                  </div>
+                <div className="py-0.5">
+                  <h3 className="font-bold text-slate-900 text-sm tracking-tight drop-shadow-[0_1px_1px_rgba(255,255,255,0.95)]">
+                    Better Decisions
+                  </h3>
+                  <p className="text-xs text-slate-600 font-medium mt-0.5 drop-shadow-[0_1px_1px_rgba(255,255,255,0.9)]">
+                    Turn standards into actionable intelligence
+                  </p>
                 </div>
               </div>
 
@@ -229,7 +246,10 @@ export default function LoginPage() {
               <div className="grid grid-cols-2 gap-2.5 mb-5">
                 <button
                   type="button"
-                  onClick={() => setAuthMethod('email')}
+                  onClick={() => {
+                    setAuthMethod('email');
+                    setError('');
+                  }}
                   className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
                     authMethod === 'email'
                       ? 'border border-orange-500 text-orange-600 bg-white shadow-2xs'
@@ -242,19 +262,26 @@ export default function LoginPage() {
 
                 <button
                   type="button"
-                  onClick={() => {
-                    setAuthMethod('sso');
-                    handleQuickDemoLogin();
-                  }}
-                  className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
+                  disabled={ssoLoading || loading}
+                  onClick={handleSsoClick}
+                  className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed ${
                     authMethod === 'sso'
                       ? 'border border-orange-500 text-orange-600 bg-white shadow-2xs'
                       : 'border border-slate-200 text-slate-500 hover:text-slate-700 hover:bg-slate-50'
                   }`}
-                  title="Single Sign-On for Government Officers (Auto login as officer)"
+                  title="Single Sign-On for Government Officers"
                 >
-                  <Building2 className="w-4 h-4" />
-                  <span>SSO (Govt.)</span>
+                  {ssoLoading ? (
+                    <>
+                      <div className="w-3.5 h-3.5 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
+                      <span>Connecting...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Building2 className="w-4 h-4" />
+                      <span>SSO (Govt.)</span>
+                    </>
+                  )}
                 </button>
               </div>
 
@@ -356,7 +383,8 @@ export default function LoginPage() {
                 <button
                   type="button"
                   onClick={handleQuickDemoLogin}
-                  className="flex items-center justify-center gap-2 py-2.5 px-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-2xs hover:border-slate-300 transition-all cursor-pointer active:scale-98"
+                  disabled={loading || ssoLoading}
+                  className="flex items-center justify-center gap-2 py-2.5 px-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-2xs hover:border-slate-300 transition-all cursor-pointer active:scale-98 disabled:opacity-60"
                 >
                   <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
                     <path
@@ -382,7 +410,8 @@ export default function LoginPage() {
                 <button
                   type="button"
                   onClick={handleQuickDemoLogin}
-                  className="flex items-center justify-center gap-2 py-2.5 px-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-2xs hover:border-slate-300 transition-all cursor-pointer active:scale-98"
+                  disabled={loading || ssoLoading}
+                  className="flex items-center justify-center gap-2 py-2.5 px-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-2xs hover:border-slate-300 transition-all cursor-pointer active:scale-98 disabled:opacity-60"
                 >
                   <svg className="w-4 h-4 shrink-0" viewBox="0 0 21 21">
                     <rect x="1" y="1" width="9" height="9" fill="#f25022" />
