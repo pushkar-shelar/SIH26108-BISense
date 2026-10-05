@@ -56,12 +56,14 @@ export async function fetchApi<T>(endpoint: string, options?: RequestInit): Prom
     }
 
     const response = await fetch(url, {
+      credentials: 'include',
       ...options,
       headers,
     });
 
     if (!response.ok) {
-      if (response.status === 401 && !options?.headers?.hasOwnProperty('No-Retry')) {
+      const isAuthEndpoint = cleanEndpoint.startsWith('/auth/');
+      if (response.status === 401 && !options?.headers?.hasOwnProperty('No-Retry') && !isAuthEndpoint) {
         return { response, failed401: true } as { response: Response; failed401: true };
       }
 

@@ -23,6 +23,10 @@ export const authApi = {
   login: async (credentials: any): Promise<AuthResponse> => {
     return fetchApi<AuthResponse>('/auth/login', {
       method: 'POST',
+      credentials: 'include',
+      headers: {
+        'No-Retry': 'true'
+      },
       body: JSON.stringify(credentials),
     });
   },
@@ -30,6 +34,10 @@ export const authApi = {
   register: async (userData: any): Promise<User> => {
     return fetchApi<User>('/auth/register', {
       method: 'POST',
+      credentials: 'include',
+      headers: {
+        'No-Retry': 'true'
+      },
       body: JSON.stringify(userData),
     });
   },
@@ -49,12 +57,16 @@ export const authApi = {
     return fetchApi<void>('/auth/logout', {
       method: 'POST',
       credentials: 'include',
+      headers: {
+        'No-Retry': 'true'
+      }
     });
   },
 
   getCurrentUser: async (): Promise<User> => {
     return fetchApi<User>('/auth/me', {
       method: 'GET',
+      credentials: 'include',
     });
   },
 };
