@@ -79,15 +79,11 @@ app = FastAPI(
     openapi_tags=tags_metadata,
 )
 
-# Enable CORS for Next.js / React frontend teammates
-_allowed_origins = list(dict.fromkeys([
-    settings.frontend_url.rstrip("/"),
-    "http://localhost:5173",
-    "http://127.0.0.1:5173"
-]))
+# Enable CORS for Next.js / React frontend teammates and hosted deployments
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=_allowed_origins,
+    allow_origins=["*"],
+    allow_origin_regex=r"^https?://.*",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
